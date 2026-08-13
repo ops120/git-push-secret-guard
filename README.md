@@ -152,7 +152,9 @@ python .git/secret-guard/secret_guard.py staged
 
 ## 使用说明
 
-安装 hooks 后，日常仍使用标准 Git 命令：
+### 默认情况：提交和推送时自动检查
+
+为仓库安装 hooks 后，不需要每次手动调用 Skill。日常仍然使用标准 Git 命令：
 
 ```bash
 git add <files>
@@ -160,9 +162,65 @@ git commit -m "your message"
 git push origin HEAD:refs/heads/<branch>
 ```
 
-执行 `git commit` 时，`pre-commit` 自动检查暂存区；执行 `git push` 时，`pre-push` 自动检查本次推送将引入远端的全部提交和文件对象。
+默认执行过程：
 
-### 在 Agent 中调用
+- `git commit`：`pre-commit` 自动扫描暂存区；发现风险时阻止提交。
+- `git push`：`pre-push` 自动扫描本次推送将引入远端的全部提交和文件对象；发现风险时阻止推送。
+- 扫描通过：显示 `secret-guard: PASS`，Git 继续执行。
+- 扫描阻断：显示 `secret-guard: BLOCKED`、风险文件和原因，Git 操作停止。
+- 扫描器异常：以 `scan-error` 失败关闭，不静默放行。
+
+### 最通用的手动调用
+
+需要主动检查时，在 Claude Code 中使用：
+
+```text
+/git-push-secret-guard 检查当前仓库
+```
+
+OMP 使用：
+
+```text
+/skill:git-push-secret-guard 检查当前仓库
+```
+
+Codex、OpenCode 等平台也可以直接用自然语言：
+
+```text
+使用 git-push-secret-guard 检查当前仓库
+```
+
+### 还可以使用更明确的命令
+
+```text
+/git-push-secret-guard 检查当前暂存区
+```
+
+```text
+/git-push-secret-guard 检查所有待推送提交
+```
+
+```text
+/git-push-secret-guard 为当前仓库安装防泄漏保护
+```
+
+```text
+/git-push-secret-guard 安全提交并推送当前修改
+```
+
+```text
+/git-push-secret-guard 更新 Skill，并重新安装当前仓库的 hooks 和扫描器
+```
+
+扫描整个工作目录时，可使用：
+
+```text
+/git-push-secret-guard 以只读方式扫描当前工作目录中的所有本地文件，包括已跟踪、未跟踪、未暂存和已暂存文件；跳过 .git、node_modules、venv、dist 和 build。只报告风险，不修改任何文件。如果当前版本不支持全目录扫描，请明确说明，不要用暂存区扫描代替。
+```
+
+当前确定性扫描器只提供 `staged` 和 `pre-push` 模式。全工作目录检查需要 Agent 辅助完成；Agent 必须明确报告实际扫描范围，不能把暂存区扫描结果描述成全目录扫描。
+
+### 各 Agent 调用示例
 
 Codex：
 
@@ -173,13 +231,13 @@ Codex：
 Claude Code：
 
 ```text
-/git-push-secret-guard 检查当前仓库并安装保护
+/git-push-secret-guard 检查当前仓库
 ```
 
 OMP：
 
 ```text
-/skill:git-push-secret-guard 检查所有待推送提交
+/skill:git-push-secret-guard 检查当前仓库
 ```
 
 OpenCode：
