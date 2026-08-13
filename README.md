@@ -52,7 +52,77 @@
 
 Skill 仓库：<https://github.com/ops120/git-push-secret-guard>
 
-复制完整仓库，而不是只复制 `SKILL.md`，因为运行时还需要 `scripts/` 和 `assets/`。
+### 1. 用自然语言首次安装
+
+把下面这段话直接发送给 Claude Code、Codex、OMP 或 OpenCode：
+
+```text
+安装 https://github.com/ops120/git-push-secret-guard 这个 Skill。
+请识别当前 Agent 和操作系统，将完整仓库安装到正确的用户级 Skills 目录，不要只复制 SKILL.md。
+安装完成后验证 SKILL.md、scripts 和 assets 均存在，并告诉我实际安装路径。
+然后询问我是否要立即为当前 Git 仓库安装 pre-commit 和 pre-push hooks；未经确认不要覆盖已有 hooks。
+```
+
+Agent 应自动识别安装目录、执行下载并报告结果。安装完成后重启 Agent，或开启一个新会话，让它重新发现 Skill。
+
+### 2. 用自然语言保护当前仓库
+
+> **关键区别：Skill 负责告诉 Agent 如何操作，Git hooks 才是真正执行拦截的组件。**
+
+在需要保护的仓库中对 Agent 说：
+
+```text
+使用 git-push-secret-guard 为当前 Git 仓库安装防泄漏保护。
+请先确认当前目录是正确的 Git 仓库，再安装 pre-commit、pre-push hooks 和扫描器。
+如果已有同名 hooks，请停止并说明冲突，不要自行覆盖。
+安装后运行暂存区扫描，并告诉我安装是否成功、实际文件位置和验证结果。
+```
+
+Agent 将调用 Skill 内的安装器并完成：
+
+1. 将当前版本扫描器复制到仓库的 `.git/secret-guard/secret_guard.py`。
+2. 安装 `.git/hooks/pre-commit` 和 `.git/hooks/pre-push`。
+3. 将安全规则追加到当前仓库的 `.gitignore`。
+4. 运行一次扫描并明确报告 `PASS`、`BLOCKED` 或安装错误。
+
+### 3. 用自然语言更新
+
+更新时直接说：
+
+```text
+更新 https://github.com/ops120/git-push-secret-guard 这个 Skill。
+请找到当前 Agent 已安装的 Skill 目录，以 fast-forward 方式更新到远端最新版本。
+更新后，为当前 Git 仓库重新安装 hooks 和扫描器；覆盖前先检查现有 hooks 是否属于 Secret Guard，如包含其他自定义逻辑则停止并提示我。
+最后比较 Skill 源扫描器与 .git/secret-guard/secret_guard.py 是否一致，运行完整测试和暂存区扫描，并用中文报告结果。
+```
+
+只更新 Skill 目录不会自动更新业务仓库 `.git/secret-guard/` 中的扫描器副本，因此“重新安装当前仓库 hooks 和扫描器”是更新流程的必要步骤。
+
+### 4. 用自然语言验证
+
+需要单独检查时说：
+
+```text
+使用 git-push-secret-guard 检查当前仓库的安装状态。
+请验证 pre-commit、pre-push 和 .git/secret-guard/secret_guard.py 均存在，确认仓库内扫描器与已安装 Skill 的版本一致，并扫描当前暂存区。
+不要创建或提交真实密钥；如需测试，只使用运行时生成的无效测试凭据并在测试后清理。
+```
+
+Agent 应明确区分：Skill 已安装、hooks 已安装、扫描通过、扫描阻断和扫描器错误。
+
+### OMP 调用示例
+
+OMP 安装完成并重启后，也可以显式调用：
+
+```text
+/skill:git-push-secret-guard 为当前仓库安装 Git 防泄漏保护
+```
+
+Git hooks 不会因为 clone 业务仓库而自动安装；每个业务仓库都必须执行上面的第 2 步。
+
+### 手动安装与故障排查
+
+只有 Agent 无法自动完成时才需要手动操作。
 
 | Agent | Windows 用户级安装目录 | Linux/macOS 用户级安装目录 |
 |---|---|---|
@@ -61,116 +131,24 @@ Skill 仓库：<https://github.com/ops120/git-push-secret-guard>
 | OMP | `C:\Users\<用户名>\.omp\skills\git-push-secret-guard\` | `~/.omp/skills/git-push-secret-guard/` |
 | OpenCode | `C:\Users\<用户名>\.agents\skills\git-push-secret-guard\` | `~/.agents/skills/git-push-secret-guard/` |
 
-### 1. 首次安装 Skill
-
-选择与你使用的 Agent 对应的一个目录。以下命令以 Claude Code 为例。
-
-Windows PowerShell：
-
-```powershell
-git clone https://github.com/ops120/git-push-secret-guard.git `
-  "$HOME\.claude\skills\git-push-secret-guard"
-```
-
-Linux/macOS：
+以 Claude Code 为例：
 
 ```bash
-git clone https://github.com/ops120/git-push-secret-guard.git \
-  ~/.claude/skills/git-push-secret-guard
-```
-
-其他 Agent 只需替换目标目录。例如 OMP 使用 `~/.omp/skills/git-push-secret-guard`，Codex 使用 `~/.codex/skills/git-push-secret-guard`。
-
-安装后重启 Agent，或者开启一个新会话，让它重新发现 Skill。
-
-### 2. 为需要保护的仓库安装 hooks
-
-> **关键区别：Skill 负责告诉 Agent 如何操作，Git hooks 才是真正执行拦截的组件。**
-
-安装 Skill 后，必须在每个需要保护的 Git clone 中运行一次 `scripts/install.py`：
-
-```powershell
-cd D:\path\to\your-repository
-python "$HOME\.claude\skills\git-push-secret-guard\scripts\install.py"
-```
-
-Linux/macOS：
-
-```bash
+git clone https://github.com/ops120/git-push-secret-guard.git ~/.claude/skills/git-push-secret-guard
 cd /path/to/your-repository
 python ~/.claude/skills/git-push-secret-guard/scripts/install.py
 ```
 
-安装器会：
-
-1. 将当前版本扫描器复制到仓库的 `.git/secret-guard/secret_guard.py`。
-2. 安装 `.git/hooks/pre-commit` 和 `.git/hooks/pre-push`。
-3. 将安全规则追加到当前仓库的 `.gitignore`。
-
-如果仓库已有同名 hook，默认保留并停止，不会静默覆盖。确认允许替换后运行：
-
-```bash
-python <skill-directory>/scripts/install.py --force
-```
-
-### 3. 更新已安装的 Skill
-
-先更新 Agent Skill，再到每个受保护仓库重新安装 hooks 和扫描器。只执行 `git pull` 不会自动更新仓库 `.git/secret-guard/` 中的副本。
-
-Windows PowerShell（Claude Code 示例）：
-
-```powershell
-git -C "$HOME\.claude\skills\git-push-secret-guard" pull --ff-only
-
-cd D:\path\to\your-repository
-python "$HOME\.claude\skills\git-push-secret-guard\scripts\install.py" --force
-```
-
-Linux/macOS：
+更新并重新部署当前仓库扫描器：
 
 ```bash
 git -C ~/.claude/skills/git-push-secret-guard pull --ff-only
-
 cd /path/to/your-repository
 python ~/.claude/skills/git-push-secret-guard/scripts/install.py --force
-```
-
-`--force` 会同时更新 hooks 和 `.git/secret-guard/secret_guard.py`。如果现有 hooks 包含其他自定义逻辑，请不要覆盖，应手动把 Secret Guard 命令集成进去。
-
-### 4. 验证安装是否生效
-
-检查暂存区：
-
-```bash
 python .git/secret-guard/secret_guard.py staged
 ```
 
-无风险时应显示 `secret-guard: PASS`。也可以确认 Skill 源文件与仓库内扫描器完全一致：
-
-```powershell
-$skillScanner = "$HOME\.claude\skills\git-push-secret-guard\scripts\secret_guard.py"
-$hookScanner = ".git\secret-guard\secret_guard.py"
-(Get-FileHash $skillScanner).Hash -eq (Get-FileHash $hookScanner).Hash
-```
-
-结果为 `True` 表示目标仓库正在使用最新扫描器。
-
-### OMP 调用示例
-
-Windows PowerShell：
-
-```powershell
-git clone https://github.com/ops120/git-push-secret-guard.git `
-  "$HOME\.omp\skills\git-push-secret-guard"
-```
-
-重启 OMP 后调用：
-
-```text
-/skill:git-push-secret-guard 为当前仓库安装 Git 防泄漏保护
-```
-
-Git hooks 不会因为 clone 业务仓库而自动安装；每个业务仓库都必须执行上面的第 2 步。
+如果现有 hooks 含有其他逻辑，不要使用 `--force`，应手动集成 Secret Guard 调用。
 
 ## 使用说明
 
