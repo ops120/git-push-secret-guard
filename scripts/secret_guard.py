@@ -66,10 +66,34 @@ PROVIDER = re.compile(
     rb"(?i)(?:minimax|deepseek)[_a-z0-9-]*(?:api[_-]?key|token|secret)"
     rb"\s*[:=]\s*['\"]?([A-Za-z0-9._\-/+=]{16,})"
 )
-GENERIC = re.compile(
-    rb"(?i)(?:api[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret|password)"
-    rb"\s*[:=]\s*['\"]?([A-Za-z0-9._\-/+=]{16,})"
+VALUE_CHARS = rb"[A-Za-z0-9._\-/+=]"
+SPECIFIC_CREDENTIAL = re.compile(
+    rb"(?i)(?:"
+    rb"api[\s_-]*key|apikey|access[\s_-]*token|auth[\s_-]*token|"
+    rb"bearer[\s_-]*token|refresh[\s_-]*token|client[\s_-]*secret|"
+    rb"api[\s_-]*secret|app[\s_-]*secret|password|passwd|pwd"
+    rb")[\"']?\s*[:=]\s*['\"]?(" + VALUE_CHARS + rb"{12,})"
 )
+WIDE_CREDENTIAL = re.compile(
+    rb"(?i)(?:token|secret)[\"']?\s*[:=]\s*['\"]?(" + VALUE_CHARS + rb"{20,})"
+)
+BEARER_CREDENTIAL = re.compile(
+    rb"(?i)authorization\s*:\s*bearer\s+(" + VALUE_CHARS + rb"{20,})"
+)
+PLACEHOLDER_VALUES = {
+    b"example", b"fixture", b"test", b"placeholder", b"your-api-key",
+    b"your_key", b"your-token", b"your_token", b"your_token_here",
+    b"replace-me", b"replace_me", b"changeme",
+}
+
+
+def assigned_credentials(data: bytes) -> bool:
+    for pattern in (PROVIDER, SPECIFIC_CREDENTIAL, WIDE_CREDENTIAL, BEARER_CREDENTIAL):
+        for match in pattern.finditer(data):
+            value = match.group(1).lower()
+            if value not in PLACEHOLDER_VALUES:
+                return True
+    return False
 
 
 def bare_prefixes() -> tuple[str, ...]:
@@ -127,7 +151,7 @@ def inspect_blob(path: str, data: bytes, context: str) -> list[Finding]:
         findings.append(Finding("sqlite-database", path, context, message("sqlite")))
     if PRIVATE_KEY.search(data):
         findings.append(Finding("private-key", path, context, message("private")))
-    if PROVIDER.search(data) or GENERIC.search(data):
+    if assigned_credentials(data):
         findings.append(Finding("credential", path, context, message("credential")))
     for prefix in sorted(bare_credentials(data)):
         findings.append(Finding("bare-credential", path, context,

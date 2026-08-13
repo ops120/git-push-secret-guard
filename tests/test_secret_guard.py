@@ -98,6 +98,53 @@ class RepoCase(unittest.TestCase):
                 self.assertBlocked(result, "credential")
                 self.assertNotIn(secret_line.split("'", 2)[1], result.stdout + result.stderr)
 
+    def test_common_credential_field_styles_are_blocked_and_redacted(self):
+        value = "RealLikeValue" + "84920571AbCd"
+        fixtures = [
+            f"apiKey = '{value}'\n",
+            f"ApiKey: '{value}'\n",
+            f"API-KEY={value}\n",
+            f"api key = {value}\n",
+            f"bearer_token = '{value}'\n",
+            f"refreshToken: '{value}'\n",
+            f"api_secret = '{value}'\n",
+            f"appSecret: '{value}'\n",
+            f"passwd = '{value}'\n",
+            f"pwd: '{value}'\n",
+        ]
+        for index, content in enumerate(fixtures):
+            with self.subTest(content=content.split("=", 1)[0]):
+                run(["git", "reset", "-q"], self.repo)
+                self.write(f"style{index}.txt", content)
+                result = self.scan_staged("en-US")
+                self.assertBlocked(result, "credential")
+                self.assertNotIn(value, result.stdout + result.stderr)
+
+    def test_wide_token_and_secret_fields_require_long_values(self):
+        long_value = "LongGenericValue" + "73910582XyZa"
+        self.write("wide.json", '{\n  "token":\n  "' + long_value + '",\n  "secret": "' + long_value + '"\n}\n')
+        result = self.scan_staged()
+        self.assertBlocked(result, "credential")
+        self.assertNotIn(long_value, result.stdout + result.stderr)
+
+    def test_authorization_bearer_is_blocked_and_redacted(self):
+        value = "BearerValue" + "62819473QrStUv"
+        self.write("headers.txt", f"Authorization: Bearer {value}\n")
+        result = self.scan_staged()
+        self.assertBlocked(result, "credential")
+        self.assertNotIn(value, result.stdout + result.stderr)
+
+    def test_common_credential_placeholders_are_allowed(self):
+        content = "\n".join([
+            "apiKey = your-api-key",
+            "token = example-token",
+            "secret = placeholder",
+            "pwd = test",
+            "Authorization: Bearer YOUR_TOKEN_HERE",
+        ])
+        self.write("credential-examples.md", content + "\n")
+        self.assertEqual(self.scan_staged().returncode, 0)
+
     def test_high_confidence_bare_sk_and_tp_credentials_are_blocked_and_redacted(self):
         fixtures = {
             "sk": "sk-" + "A8f29dkL03mNz71QpX6vBcDe",

@@ -12,7 +12,7 @@
 
 ## 功能特性
 
-- 凭据检测：识别 MiniMax、DeepSeek 及通用 API Key、Token、密码和 Secret。
+- 通用凭据检测：识别 API Key、Token、Secret、Password、Bearer Token，不依赖特定供应商。
 - 裸凭据检测：默认识别高置信度 `sk-`、`tp-` 凭据，包括普通文本、注释和多行 JSON；短占位符不会阻断。
 - 私钥检测：识别 PEM 私钥标记及敏感密钥文件。
 - 敏感文件拦截：阻止 `.env`、数据库、备份、转储和密钥文件进入仓库。
@@ -268,7 +268,12 @@ export SECRET_GUARD_PREFIXES=sk,tp,ak,mycorp
 - `*.db`、`*.db-*`、`*.sqlite`、`*.sqlite3`。
 - `*.bak`、`*.bak-*`、`*.backup`、`*.dump`。
 - `*.pem`、`*.key` 和私钥正文。
-- MiniMax、DeepSeek 与通用凭据赋值。
+- 通用凭据字段：`api_key`、`api-key`、`apiKey`、`ApiKey`、`API KEY`。
+- Token 字段：`access_token`、`authToken`、`bearer_token`、`refreshToken`，以及高置信度的 `token`。
+- Secret 字段：`client_secret`、`apiSecret`、`appSecret`，以及高置信度的 `secret`。
+- 密码字段：`password`、`passwd`、`pwd`。
+- `Authorization: Bearer ...` 请求头。
+- 普通赋值、环境变量、JSON 和多行 JSON 格式。
 - 后缀至少 20 位且同时包含字母和数字的裸 `sk-`、`tp-` 或自定义前缀凭据。
 - 带 SQLite 文件头的任意扩展名文件。
 - 超过 5 MiB 的 Git blob。
@@ -337,7 +342,7 @@ python -m unittest discover -s tests -v
 
 ### Key features
 
-- Detects MiniMax, DeepSeek, and generic API keys, tokens, passwords, and secrets.
+- Detects provider-independent API keys, tokens, secrets, passwords, and Authorization Bearer values across snake_case, kebab-case, camelCase, PascalCase, environment variables, JSON, and multiline JSON.
 - Detects high-confidence bare `sk-` and `tp-` credentials in text, comments, and multiline JSON while allowing short placeholders.
 - Detects PEM private keys and sensitive configuration files.
 - Blocks databases, backup files, dumps, key files, and blobs larger than 5 MiB.
