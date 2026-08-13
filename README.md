@@ -13,6 +13,7 @@
 ## 功能特性
 
 - 凭据检测：识别 MiniMax、DeepSeek 及通用 API Key、Token、密码和 Secret。
+- 裸凭据检测：默认识别高置信度 `sk-`、`tp-` 凭据，包括普通文本、注释和多行 JSON；短占位符不会阻断。
 - 私钥检测：识别 PEM 私钥标记及敏感密钥文件。
 - 敏感文件拦截：阻止 `.env`、数据库、备份、转储和密钥文件进入仓库。
 - SQLite 识别：通过 `SQLite format 3` 文件头识别改名或伪装的数据库。
@@ -174,6 +175,7 @@ All pending content passed the security scan.
 | 风险代码 | 含义 |
 |---|---|
 | `credential` | 检测到 API Key、Token、密码或 Secret |
+| `bare-credential` | 检测到高置信度的裸 `sk-`、`tp-` 或自定义前缀凭据 |
 | `private-key` | 检测到私钥 |
 | `prohibited-path` | 检测到禁止提交的敏感路径或文件类型 |
 | `sqlite-database` | 通过文件头识别到 SQLite 数据库 |
@@ -202,6 +204,18 @@ Linux/macOS：
 export SECRET_GUARD_LANG=zh-CN   # or en-US
 ```
 
+可通过逗号分隔的环境变量扩展裸凭据前缀。默认值为 `sk,tp`：
+
+```powershell
+$env:SECRET_GUARD_PREFIXES = "sk,tp,ak,mycorp"
+```
+
+```bash
+export SECRET_GUARD_PREFIXES=sk,tp,ak,mycorp
+```
+
+为降低误报，裸凭据后缀必须至少 20 位并同时包含字母和数字。`tp-xxxx`、`tp-example`、`tp-your-key` 和 `tp-1024` 等短值或占位符不会阻断。
+
 ## 检测范围
 
 默认阻止以下内容：
@@ -211,6 +225,7 @@ export SECRET_GUARD_LANG=zh-CN   # or en-US
 - `*.bak`、`*.bak-*`、`*.backup`、`*.dump`。
 - `*.pem`、`*.key` 和私钥正文。
 - MiniMax、DeepSeek 与通用凭据赋值。
+- 后缀至少 20 位且同时包含字母和数字的裸 `sk-`、`tp-` 或自定义前缀凭据。
 - 带 SQLite 文件头的任意扩展名文件。
 - 超过 5 MiB 的 Git blob。
 
@@ -279,6 +294,7 @@ python -m unittest discover -s tests -v
 ### Key features
 
 - Detects MiniMax, DeepSeek, and generic API keys, tokens, passwords, and secrets.
+- Detects high-confidence bare `sk-` and `tp-` credentials in text, comments, and multiline JSON while allowing short placeholders.
 - Detects PEM private keys and sensitive configuration files.
 - Blocks databases, backup files, dumps, key files, and blobs larger than 5 MiB.
 - Identifies renamed SQLite databases by their file signature.

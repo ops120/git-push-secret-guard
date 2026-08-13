@@ -98,6 +98,46 @@ class RepoCase(unittest.TestCase):
                 self.assertBlocked(result, "credential")
                 self.assertNotIn(secret_line.split("'", 2)[1], result.stdout + result.stderr)
 
+    def test_high_confidence_bare_sk_and_tp_credentials_are_blocked_and_redacted(self):
+        fixtures = {
+            "sk": "sk-" + "A8f29dkL03mNz71QpX6vBcDe",
+            "tp": "tp-" + "B7g38elM14nOy82RqW5uCdEf",
+        }
+        for index, (kind, secret) in enumerate(fixtures.items()):
+            with self.subTest(kind=kind):
+                run(["git", "reset", "-q"], self.repo)
+                self.write(f"bare{index}.txt", f"value: {secret}\n")
+                result = self.scan_staged("en-US")
+                self.assertBlocked(result, "bare-credential")
+                self.assertNotIn(secret, result.stdout + result.stderr)
+
+    def test_bare_credential_in_comment_is_blocked(self):
+        secret = "tp-" + "C6h47fmN25pQz93SrX4vDeFg"
+        self.write("comment.py", f"# temporary token {secret}\n")
+        self.assertBlocked(self.scan_staged(), "bare-credential")
+
+    def test_multiline_json_credential_is_blocked(self):
+        secret = "tp-" + "D5i56gnO36qRa04TsY3wEfGh"
+        self.write("config.json", '{\n  "token":\n  "' + secret + '"\n}\n')
+        self.assertBlocked(self.scan_staged(), "bare-credential")
+
+    def test_short_and_placeholder_prefixes_are_allowed(self):
+        content = "\n".join([
+            "tp-xxxx", "tp-example", "tp-your-key", "tp-1024",
+            "sk-xxx", "sk-example", "sk-your-key",
+        ])
+        self.write("examples.md", content + "\n")
+        self.assertEqual(self.scan_staged().returncode, 0)
+
+    def test_custom_bare_prefix_is_supported(self):
+        secret = "ak-" + "E4j65hoP47rSb15UtZ2xFgHi"
+        self.write("custom.txt", secret + "\n")
+        env = os.environ.copy()
+        env["SECRET_GUARD_PREFIXES"] = "sk,tp,ak"
+        result = run([sys.executable, str(SCANNER), "staged"], self.repo,
+                     check=False, env=env)
+        self.assertBlocked(result, "bare-credential")
+
     def test_private_key_is_blocked(self):
         marker = "-----BEGIN " + "PRIVATE KEY-----"
         self.write("key.txt", marker + "\nfixture\n")

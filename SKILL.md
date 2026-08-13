@@ -60,7 +60,7 @@ The installed `pre-push` hook repeats the scan using Git's exact ref-update inpu
 
 ## Blocking Policy
 
-Block credentials, private keys, `.env` files, databases/backups, disguised SQLite blobs, files over 5 MiB, and secrets present in any commit being introduced by the push. Block when Git object enumeration, input parsing, or file reading fails. Never bypass with `--no-verify`.
+Block assigned credentials, high-confidence bare `sk-`/`tp-` credentials, private keys, `.env` files, databases/backups, disguised SQLite blobs, files over 5 MiB, and secrets present in any commit being introduced by the push. Bare credentials require at least 20 suffix characters containing both letters and digits; allow short placeholders such as `tp-xxxx` and `sk-example`. Extend prefixes with `SECRET_GUARD_PREFIXES=sk,tp,ak`. Block when Git object enumeration, input parsing, or file reading fails. Never bypass with `--no-verify`.
 
 Do not print secret values. Report only risk type, path, commit context, and remediation.
 

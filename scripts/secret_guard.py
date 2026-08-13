@@ -23,6 +23,7 @@ MESSAGES = {
         "sqlite": "SQLite database detected",
         "private": "private key detected",
         "credential": "credential-like assignment detected; value redacted",
+        "bare_credential": "high-confidence bare credential with {prefix}- prefix detected; value redacted",
         "result": "Result: No content was pushed to the remote.",
         "action": "Action: Remove the content from every affected commit and scan again. If it reached any remote, revoke or rotate the credential first, then clean history.",
         "error": "secret-guard: BLOCKED\n- [scan-error] Security scan failed: {error}\nResult: Push was not attempted by secret-guard.",
@@ -51,7 +52,10 @@ def language() -> str:
 
 
 def message(key: str, **values: object) -> str:
-    return MESSAGES[language()][key].format(**values)
+    selected = language()
+    if key == "bare_credential" and selected == "zh":
+        return f"检测到以 {values['prefix']}- 开头的高置信度裸凭据，敏感值已隐藏"
+    return MESSAGES[selected][key].format(**values)
 
 PROHIBITED = re.compile(
     r"(^|/)(?:\.env(?:\..+)?|[^/]*\.(?:db|sqlite3?|bak|backup|dump|pem|key)(?:[.\-_].*)?)$",
@@ -66,6 +70,33 @@ GENERIC = re.compile(
     rb"(?i)(?:api[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret|password)"
     rb"\s*[:=]\s*['\"]?([A-Za-z0-9._\-/+=]{16,})"
 )
+
+
+def bare_prefixes() -> tuple[str, ...]:
+    configured = os.environ.get("SECRET_GUARD_PREFIXES", "sk,tp")
+    prefixes: list[str] = []
+    for value in configured.split(","):
+        prefix = value.strip().lower().removesuffix("-")
+        if re.fullmatch(r"[a-z][a-z0-9_]{0,15}", prefix) and prefix not in prefixes:
+            prefixes.append(prefix)
+    return tuple(prefixes)
+
+
+def bare_credentials(data: bytes) -> set[str]:
+    prefixes = bare_prefixes()
+    if not prefixes:
+        return set()
+    alternatives = b"|".join(re.escape(prefix.encode("ascii")) for prefix in prefixes)
+    pattern = re.compile(
+        rb"(?i)(?<![A-Za-z0-9_])(" + alternatives +
+        rb")-([A-Za-z0-9][A-Za-z0-9._/+\-=]{19,})(?![A-Za-z0-9._/+\-=])"
+    )
+    detected: set[str] = set()
+    for match in pattern.finditer(data):
+        suffix = match.group(2)
+        if re.search(rb"[A-Za-z]", suffix) and re.search(rb"[0-9]", suffix):
+            detected.add(match.group(1).decode("ascii").lower())
+    return detected
 
 
 @dataclass(frozen=True)
@@ -98,6 +129,9 @@ def inspect_blob(path: str, data: bytes, context: str) -> list[Finding]:
         findings.append(Finding("private-key", path, context, message("private")))
     if PROVIDER.search(data) or GENERIC.search(data):
         findings.append(Finding("credential", path, context, message("credential")))
+    for prefix in sorted(bare_credentials(data)):
+        findings.append(Finding("bare-credential", path, context,
+                                message("bare_credential", prefix=prefix)))
     return findings
 
 
