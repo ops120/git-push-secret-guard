@@ -145,6 +145,28 @@ class RepoCase(unittest.TestCase):
         self.write("credential-examples.md", content + "\n")
         self.assertEqual(self.scan_staged().returncode, 0)
 
+    def test_unquoted_member_expressions_are_allowed(self):
+        content = "\n".join([
+            "api_key: formData.api_key,",
+            "apiKey: e.target.value,",
+            "token: response.data.token,",
+        ])
+        self.write("component.jsx", content + "\n")
+        self.assertEqual(self.scan_staged().returncode, 0)
+
+    def test_legacy_secret_fixture_is_allowed(self):
+        self.write("legacy.test.js", "const model = { api_key: 'legacy-secret' };\n")
+        self.assertEqual(self.scan_staged().returncode, 0)
+
+    def test_quoted_dotted_credentials_and_jwt_are_blocked(self):
+        dotted = "live.value.with.dots." + "A1b2C3d4E5f6"
+        jwt = "eyJhbGciOiJIUzI1NiJ9." + "payload123.signature456"
+        self.write("quoted.json", '{"apiKey":"' + dotted + '","token":"' + jwt + '"}\n')
+        result = self.scan_staged()
+        self.assertBlocked(result, "credential")
+        self.assertNotIn(dotted, result.stdout + result.stderr)
+        self.assertNotIn(jwt, result.stdout + result.stderr)
+
     def test_high_confidence_bare_sk_and_tp_credentials_are_blocked_and_redacted(self):
         fixtures = {
             "sk": "sk-" + "A8f29dkL03mNz71QpX6vBcDe",

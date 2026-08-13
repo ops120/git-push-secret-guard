@@ -72,26 +72,35 @@ SPECIFIC_CREDENTIAL = re.compile(
     rb"api[\s_-]*key|apikey|access[\s_-]*token|auth[\s_-]*token|"
     rb"bearer[\s_-]*token|refresh[\s_-]*token|client[\s_-]*secret|"
     rb"api[\s_-]*secret|app[\s_-]*secret|password|passwd|pwd"
-    rb")[\"']?\s*[:=]\s*['\"]?(" + VALUE_CHARS + rb"{12,})"
+    rb")[\"']?\s*[:=]\s*(['\"]?)(" + VALUE_CHARS + rb"{12,})\1"
 )
 WIDE_CREDENTIAL = re.compile(
-    rb"(?i)(?:token|secret)[\"']?\s*[:=]\s*['\"]?(" + VALUE_CHARS + rb"{20,})"
+    rb"(?i)(?:token|secret)[\"']?\s*[:=]\s*(['\"]?)(" + VALUE_CHARS + rb"{20,})\1"
 )
 BEARER_CREDENTIAL = re.compile(
-    rb"(?i)authorization\s*:\s*bearer\s+(" + VALUE_CHARS + rb"{20,})"
+    rb"(?i)authorization\s*:\s*bearer\s+()(" + VALUE_CHARS + rb"{20,})"
 )
 PLACEHOLDER_VALUES = {
     b"example", b"fixture", b"test", b"placeholder", b"your-api-key",
     b"your_key", b"your-token", b"your_token", b"your_token_here",
-    b"replace-me", b"replace_me", b"changeme",
+    b"replace-me", b"replace_me", b"changeme", b"legacy-secret",
 }
+MEMBER_EXPRESSION = re.compile(
+    rb"[A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*)+"
+)
 
 
 def assigned_credentials(data: bytes) -> bool:
-    for pattern in (PROVIDER, SPECIFIC_CREDENTIAL, WIDE_CREDENTIAL, BEARER_CREDENTIAL):
+    for match in PROVIDER.finditer(data):
+        if match.group(1).lower() not in PLACEHOLDER_VALUES:
+            return True
+    for pattern in (SPECIFIC_CREDENTIAL, WIDE_CREDENTIAL, BEARER_CREDENTIAL):
         for match in pattern.finditer(data):
-            value = match.group(1).lower()
+            quote, raw_value = match.group(1), match.group(2)
+            value = raw_value.lower()
             if value not in PLACEHOLDER_VALUES:
+                if not quote and MEMBER_EXPRESSION.fullmatch(raw_value):
+                    continue
                 return True
     return False
 
