@@ -266,6 +266,14 @@ class RepoCase(unittest.TestCase):
         self.assertEqual(result.returncode, 0)
         self.assertIn("安装成功", result.stdout)
 
+    def test_installer_supports_unicode_repository_path(self):
+        unicode_repo = self.repo / "中文仓库"
+        unicode_repo.mkdir()
+        run(["git", "init", "-q"], unicode_repo)
+        result = run([sys.executable, str(INSTALLER)], unicode_repo, check=False)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertTrue((unicode_repo / ".git" / "secret-guard" / "secret_guard.py").is_file())
+
     def test_pre_push_hook_blocks_secret_hidden_in_earlier_commit(self):
         remote_dir = Path(self.tmp.name + "-remote.git")
         self.addCleanup(lambda: subprocess.run(

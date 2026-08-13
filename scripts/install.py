@@ -30,7 +30,7 @@ def translated(english: str, chinese_text: str) -> str:
 
 def git_dir() -> Path:
     result = subprocess.run(["git", "rev-parse", "--path-format=absolute", "--git-dir"],
-                            capture_output=True, text=True)
+                            capture_output=True, text=True, encoding="utf-8", errors="replace")
     if result.returncode:
         raise RuntimeError(result.stderr.strip() or "not inside a Git repository")
     return Path(result.stdout.strip())
