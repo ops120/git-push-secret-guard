@@ -1,0 +1,6 @@
+interface:
+  display_name: "Git Push Secret Guard"
+  short_description: "Block secrets and sensitive files before Git push"
+  default_prompt: "Use $git-push-secret-guard to scan this repository and safely prepare the pending commits for push."
+policy:
+  allow_implicit_invocation: true
